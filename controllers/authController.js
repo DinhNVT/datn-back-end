@@ -166,7 +166,10 @@ export const forgetPasswordUser = async (req, res) => {
 // @access  Public
 export const loginUser = async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.body.email });
+    const user = await User.findOne({ email: req.body.email }).populate(
+      "roleId",
+      "name"
+    );
     if (!user) {
       return res
         .status(StatusCodes.NOT_FOUND)
@@ -191,9 +194,8 @@ export const loginUser = async (req, res) => {
 
     if (user && user.isVerify && validPassword) {
       await RefreshToken.deleteMany({ userId: user._id });
-      const role = await Role.findOne({ _id: user.roleId });
-      const accessToken = generateAccessToken(user._id, role.name);
-      const refreshToken = generateRefreshToken(user._id, role.name);
+      const accessToken = generateAccessToken(user._id, user.roleId.name);
+      const refreshToken = generateRefreshToken(user._id, user.roleId.name);
       const newRefreshToken = await new RefreshToken({
         token: refreshToken,
         userId: user._id,
@@ -210,7 +212,7 @@ export const loginUser = async (req, res) => {
       const { password, ...others } = user._doc;
       res
         .status(StatusCodes.OK)
-        .json({ status: "success", ...others, role: role.name, accessToken });
+        .json({ status: "success", ...others, accessToken });
     }
   } catch (error) {
     res

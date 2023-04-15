@@ -8,11 +8,13 @@ export const isLoggedIn = (req, res, next) => {
   //verify the token
   const decodedUser = verifyAccessToken(token);
   if (!decodedUser) {
-    return res.status(StatusCodes.FORBIDDEN).json({message: "You need to sign in"});
+    return res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ message: "You need to sign in" });
   } else {
     //save the user into req obj
-    req.userAuthId = decodedUser?.id;
-    req.role = decodedUser?.role;
+    req.userId = decodedUser?.userId;
+    req.role = decodedUser?.userRole;
     next();
   }
 };
