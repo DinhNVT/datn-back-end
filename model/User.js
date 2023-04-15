@@ -8,6 +8,12 @@ const UserSchema = new Schema(
     password: { type: String, required: true },
     avatar: { type: String, default: "" },
     bio: { type: String, default: "" },
+    careers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Career",
+      },
+    ],
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
     gender: {
