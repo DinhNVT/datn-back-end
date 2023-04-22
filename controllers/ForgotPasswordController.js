@@ -4,6 +4,7 @@ import path from "path";
 import ForgotPassword from "../model/ForgotPassword.js";
 import { isPasswordValid } from "../utils/validate.js";
 import bcrypt from "bcryptjs";
+import RefreshToken from "../model/RefreshToken.js";
 
 // @desc    Check token and email forgot password
 // @route   POST /verify
@@ -80,11 +81,13 @@ export const changePasswordUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    await User.findOneAndUpdate(
+    const getUser = await User.findOneAndUpdate(
       { _id: forgotPassword.userId }, // find the user with the corresponding email
-      { password: hashedPassword } // update that user's isVerify field to true
+      { password: hashedPassword }, // update that user's isVerify field to true
+      { new: true }
     );
     await ForgotPassword.deleteOne({ _id: forgotPassword._id });
+    await RefreshToken.deleteMany({ userId: getUser._id });
 
     res.status(StatusCodes.OK).send("ok");
   } catch (error) {
