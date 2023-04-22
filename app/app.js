@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
+import cors from "cors";
 import cookieParser from "cookie-parser";
 import dbConnect from "../database/connectDB.js";
 import RolesRouter from "../routes/RolesRouter.js";
@@ -12,6 +13,11 @@ dotenv.config();
 dbConnect();
 const app = express();
 app.use(cookieParser());
+const corsOptions = {
+  origin: ["http://localhost:3000", "http://localhost:3001"],
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 //server static files
 app.use(express.static("public"));

@@ -9,7 +9,9 @@ import path from "path";
 export const verifyTokenMail = async (req, res) => {
   const { email, token } = req.query;
   try {
-    const verifyEmail = await VerifyEmail.findOne({ email });
+    const verifyEmail = await VerifyEmail.findOne({ email }).sort({
+      createdAt: "desc",
+    });
     if (!verifyEmail) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -26,7 +28,7 @@ export const verifyTokenMail = async (req, res) => {
       { _id: verifyEmail.userId }, // find the user with the corresponding email
       { isVerify: true } // update that user's isVerify field to true
     );
-    await VerifyEmail.deleteOne({ _id: verifyEmail._id });
+    await VerifyEmail.deleteMany({ email: verifyEmail.email });
     res
       .status(StatusCodes.OK)
       .sendFile(path.join("public", "verifySuccess.html"), { root: "." });

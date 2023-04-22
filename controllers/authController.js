@@ -39,7 +39,7 @@ export const registerUser = async (req, res) => {
     }
 
     //Check user exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: email.toLowerCase() });
     if (userExists) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -60,7 +60,7 @@ export const registerUser = async (req, res) => {
     //Create user
     const newUser = await new User({
       name: capitalizeFirstName(name),
-      email: email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       roleId: role._id,
     });
@@ -102,7 +102,7 @@ export const registerUser = async (req, res) => {
     console.log(error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ status: "fail", message: error });
+      .json({ status: "fail", message: "internal_server_error" });
   }
 };
 
@@ -113,11 +113,19 @@ export const forgetPasswordUser = async (req, res) => {
   const { email } = req.body;
   try {
     //Check user exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: email.toLowerCase() });
     if (!userExists) {
       return res
         .status(StatusCodes.BAD_REQUEST)
         .json({ status: "fail", message: "Invalid email" });
+    }
+
+    if (!userExists.isVerify) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message:
+          "You have not verified your email. Please check your email to verify your account.",
+      });
     }
 
     //send mail verify
@@ -166,10 +174,9 @@ export const forgetPasswordUser = async (req, res) => {
 // @access  Public
 export const loginUser = async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.body.email }).populate(
-      "roleId",
-      "name"
-    );
+    const user = await User.findOne({
+      email: req.body.email.toLowerCase(),
+    }).populate("roleId", "name");
     if (!user) {
       return res
         .status(StatusCodes.NOT_FOUND)
@@ -177,7 +184,8 @@ export const loginUser = async (req, res) => {
     } else if (!user.isVerify) {
       return res.status(StatusCodes.NOT_FOUND).json({
         status: "fail",
-        message: "Your account is not verified. Please check your email",
+        message:
+          "You have not verified your email. Please check your email to verify your account.",
       });
     }
 
@@ -217,7 +225,7 @@ export const loginUser = async (req, res) => {
   } catch (error) {
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ status: "fail", message: error });
+      .json({ status: "fail", message: "internal_server_error" });
   }
 };
 
@@ -244,7 +252,7 @@ export const refreshTokenUser = async (req, res) => {
         .json({ status: "fail", message: err });
     }
     try {
-      await RefreshToken.deleteOne({ _id: refreshTokenDB._id });
+      await RefreshToken.deleteMany({ userId: user.userId });
       const newAccessToken = generateAccessToken(user.userId, user.userRole);
       const newRefreshToken = generateRefreshToken(user.userId, user.userRole);
 
