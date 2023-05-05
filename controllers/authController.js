@@ -57,8 +57,15 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const role = await Role.findOne({ name: "user" });
+    var username = email.split("@")[0];
+    const userWithSameUsername = await User.findOne({ username });
+    if (userWithSameUsername) {
+      const randomSuffix = Math.floor(Math.random() * 1000);
+      username = `${username}${randomSuffix}`;
+    }
     //Create user
     const newUser = await new User({
+      username: username,
       name: capitalizeFirstName(name),
       email: email.toLowerCase(),
       password: hashedPassword,
