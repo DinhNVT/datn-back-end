@@ -5,6 +5,6 @@ import { createRolesController } from "../controllers/rolesController.js";
 
 const RolesRouter = express.Router();
 
-RolesRouter.post("/", authRole("admin"), createRolesController);
+RolesRouter.post("/", authRole(["master"]), createRolesController);
 
 export default RolesRouter;
