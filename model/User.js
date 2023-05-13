@@ -8,13 +8,35 @@ const UserSchema = new Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     avatar: { type: String, default: "" },
-    bio: { type: String, default: "" },
+    bio: {
+      type: String,
+      enum: ["Nông dân", "Quản trị viên", "Ẩn danh"],
+      default: "Ẩn danh",
+    },
     careers: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Career",
       },
     ],
+    social: {
+      facebook: {
+        type: String,
+        default: "",
+      },
+      youtube: {
+        type: String,
+        default: "",
+      },
+      instagram: {
+        type: String,
+        default: "",
+      },
+      tiktok: {
+        type: String,
+        default: "",
+      },
+    },
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
     gender: {
