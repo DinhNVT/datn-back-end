@@ -88,3 +88,28 @@ export const changePasswordUser = async (req, res) => {
       .json({ status: "fail", message: err.message });
   }
 };
+
+// @desc    Get Public User By Id
+// @route   POST /api/v1/users/:id
+// @access  Public
+export const getPublicUserById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id)
+      .select("name avatar bio gender social")
+    if (!user) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "User does not exist" });
+    }
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get user successfully",
+      user,
+    });
+  } catch (err) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: err.message });
+  }
+};
