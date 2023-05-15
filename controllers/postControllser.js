@@ -26,53 +26,59 @@ export const createPost = async (req, res) => {
   try {
     const newTags = tags.split(",");
     // console.log(categoryId, title, content, status, tags);
-    if (status === "published") {
-      const categoryPostExists = await CategoryPost.findOne({
-        _id: categoryId,
-      });
-      if (!categoryPostExists) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        console.log("1");
-        return res
-          .status(StatusCodes.BAD_REQUEST)
-          .json({ status: "fail", message: "Category post doesn't exist" });
-      }
 
-      if (!validator.isLength(title, { min: 2, max: 255 })) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        console.log("2");
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "length title is min:1 and max 255 only",
-        });
-      }
-
-      if (!validator.isLength(content, { min: 10 })) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        console.log("3");
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "length content is min:10",
-        });
-      }
-
-      if (newTags.length < 1) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        console.log("4");
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "Must have at least 6 tags",
-        });
-      }
+    if (status === "blocked") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "You are not authorized" });
     }
+
+    const categoryPostExists = await CategoryPost.findOne({
+      _id: categoryId,
+    });
+    if (!categoryPostExists) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      console.log("1");
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "Category post doesn't exist" });
+    }
+
+    if (!validator.isLength(title, { min: 2, max: 255 })) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      console.log("2");
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "length title is min:1 and max 255 only",
+      });
+    }
+
+    if (!validator.isLength(content, { min: 10 })) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      console.log("3");
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "length content is min:10",
+      });
+    }
+
+    if (newTags.length < 1) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      console.log("4");
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "Must have at least 6 tags",
+      });
+    }
+
     const tagIds = [];
     if (newTags.length >= 1) {
       for (let i = 0; i < newTags.length; i++) {
@@ -143,22 +149,30 @@ export const deletePost = async (req, res) => {
     }
 
     // Xóa bài viết
-    await post.remove();
+    await Post.deleteOne({ _id: postId });
+
+    if (!!post.thumbnail_url) {
+      const splitThumbnail = post.thumbnail_url.split("/");
+      cloudinary.uploader.destroy(
+        `${splitThumbnail[splitThumbnail.length - 2]}/${
+          splitThumbnail[splitThumbnail.length - 1].split(".")[0]
+        }`
+      );
+    }
 
     // Cập nhật bảng CategoryPost (nếu cần thiết)
-    const category = await CategoryPost.findById(post.categoryId);
-    if (category) {
-      category.posts = category.posts.filter(
-        (postId) => postId.toString() !== post._id.toString()
-      );
-      await category.save();
-    }
+    await CategoryPost.findByIdAndUpdate(
+      post.categoryId,
+      { $pull: { posts: post._id } },
+      { new: true }
+    );
 
     res.status(StatusCodes.OK).json({
       status: "success",
       message: "Post deleted successfully",
     });
   } catch (err) {
+    console.log(err.message);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ status: "fail", message: err.message });
@@ -186,50 +200,65 @@ export const updatePost = async (req, res) => {
         .json({ status: "fail", message: "Unauthorized" });
     }
 
+    if (post.status === "blocked") {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "This post has been blocked" });
+    }
+
     const newTags = tags.split(",");
 
-    if (status === "published") {
-      const categoryPostExists = await CategoryPost.findOne({
-        _id: categoryId,
+    const categoryPostExists = await CategoryPost.findOne({
+      _id: categoryId,
+    });
+    if (!categoryPostExists) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "Category post doesn't exist" });
+    }
+
+    if (post.categoryId.toString() !== categoryId) {
+      const oldCategory = await CategoryPost.findById(post.categoryId);
+      if (oldCategory) {
+        await oldCategory.updateOne({ $pull: { posts: post._id } });
+      }
+    }
+
+    // Add post to the new category
+    categoryPostExists.posts.push(post._id);
+    await categoryPostExists.save();
+
+    if (!validator.isLength(title, { min: 2, max: 255 })) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
+      }
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "length title is min:1 and max 255 only",
       });
-      if (!categoryPostExists) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        return res
-          .status(StatusCodes.BAD_REQUEST)
-          .json({ status: "fail", message: "Category post doesn't exist" });
-      }
+    }
 
-      if (!validator.isLength(title, { min: 2, max: 255 })) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "length title is min:1 and max 255 only",
-        });
+    if (!validator.isLength(content, { min: 10 })) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
       }
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "length content is min:10",
+      });
+    }
 
-      if (!validator.isLength(content, { min: 10 })) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "length content is min:10",
-        });
+    if (newTags.length < 1) {
+      if (req.file?.filename) {
+        cloudinary.uploader.destroy(req.file?.filename);
       }
-
-      if (newTags.length < 1) {
-        if (req.file?.filename) {
-          cloudinary.uploader.destroy(req.file?.filename);
-        }
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          status: "fail",
-          message: "Must have at least 6 tags",
-        });
-      }
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "Must have at least 6 tags",
+      });
     }
 
     const tagIds = [];
@@ -419,7 +448,7 @@ export const getAllPosts = async (req, res) => {
 };
 
 // @desc    Get Post Detail
-// @route   GET /api/v1/posts/latest
+// @route   GET /api/v1/posts/detail
 // @access  Public
 export const getPostDetail = async (req, res) => {
   const { slug } = req.query;
@@ -437,6 +466,39 @@ export const getPostDetail = async (req, res) => {
         select: ["name"],
       })
       .select("-status");
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get post latest success",
+      result: post,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get Post Detail
+// @route   GET /api/v1/posts/detail
+// @access  Public
+export const getPostDetailById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const post = await Post.findById(id).populate({
+      path: "tags",
+      select: ["name"],
+    });
+    if (!post) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Post not found" });
+    }
+
+    if (post.userId.toString() !== req.userId && req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
     res.status(StatusCodes.OK).json({
       status: "success",
       message: "Get post latest success",

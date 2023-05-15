@@ -8,6 +8,7 @@ import {
   getAllPosts,
   getPostComment,
   getPostDetail,
+  getPostDetailById,
   getPostLatest,
   getPostsMe,
   getPostsOption,
@@ -36,6 +37,7 @@ PostRouter.post("/image", isLoggedIn, upload.single("image"), uploadImagePost);
 PostRouter.get("/latest", getPostLatest);
 PostRouter.get("/get-all", getAllPosts);
 PostRouter.get("/detail", getPostDetail);
+PostRouter.get("/detail/:id", authRole(["user", "admin"]), getPostDetailById);
 PostRouter.post(
   "/comment",
   isLoggedIn,
