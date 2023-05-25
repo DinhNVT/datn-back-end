@@ -61,3 +61,46 @@ export const getAllCategories = async (req, res) => {
       .json({ status: "fail", message: err.message });
   }
 };
+
+// @desc    Get All Category By Admin
+// @route   POST /api/v1/category-post/by-admin
+// @access  Private/Admin
+export const getAllCategoriesByAdmin = async (req, res) => {
+  try {
+    const categories = await CategoryPost.find().sort({ createdAt: -1 });
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get all categories successfully",
+      count: categories.length,
+      categories,
+    });
+  } catch (err) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: err.message });
+  }
+};
+
+// @desc    Get Category Detail
+// @route   POST /api/v1/category-post/:slug
+// @access  Public
+export const getAllCategoryDetail = async (req, res) => {
+  const { slug } = req.params;
+  try {
+    if (!slug) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "not found slug" });
+    }
+    const category = await CategoryPost.findOne({ slug: slug });
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get category successfully",
+      category,
+    });
+  } catch (err) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: err.message });
+  }
+};

@@ -6,6 +6,7 @@ import {
   createPostComment,
   deletePost,
   getAllPosts,
+  getAllTags,
   getPostComment,
   getPostDetail,
   getPostDetailById,
@@ -47,5 +48,6 @@ PostRouter.post(
 PostRouter.get("/comment", getPostComment);
 PostRouter.get("/option", getPostsOption);
 PostRouter.get("/me", authRole(["user", "admin"]), getPostsMe);
+PostRouter.get("/tags", authRole(["user", "admin"]), getAllTags);
 
 export default PostRouter;
