@@ -402,7 +402,8 @@ export const getAllPosts = async (req, res) => {
       .populate({
         path: "tags",
         select: ["name"],
-      });
+      })
+      .sort({ createdAt: -1 });
 
     //pagination
     //page
@@ -414,7 +415,9 @@ export const getAllPosts = async (req, res) => {
     //endIdx
     const endIndex = page * limit;
     //total
-    const total = await Post.countDocuments();
+    const total = await Post.countDocuments({
+      status: "published",
+    });
 
     posts = await posts.skip(startIndex).limit(limit);
 
@@ -541,6 +544,66 @@ export const getPostsOption = async (req, res) => {
       total = await Post.countDocuments({
         status: "published",
         userId: userFind._id,
+      });
+    } else if (req.query.search) {
+      const keyword = req.query.search.toLowerCase();
+      posts = posts
+        .find({
+          status: "published",
+          $or: [
+            { title: { $regex: keyword, $options: "i" } },
+            { content: { $regex: keyword, $options: "i" } },
+            {
+              tags: {
+                $in: await Tag.find({
+                  name: { $regex: keyword, $options: "i" },
+                }).distinct("_id"),
+              },
+            },
+          ],
+        })
+        .select("-categoryId -status")
+        .populate({
+          path: "userId",
+          select: ["username", "avatar", "name"],
+        })
+        .populate({
+          path: "tags",
+          select: ["name"],
+        });
+      total = await Post.countDocuments({
+        status: "published",
+        $or: [
+          { title: { $regex: keyword, $options: "i" } },
+          { content: { $regex: keyword, $options: "i" } },
+          {
+            tags: {
+              $in: await Tag.find({
+                name: { $regex: keyword, $options: "i" },
+              }).distinct("_id"),
+            },
+          },
+        ],
+      });
+    } else if (req.query.category) {
+      const categoryFind = await CategoryPost.findOne({
+        slug: req.query.category,
+      });
+      posts = posts
+        .find({ status: "published", categoryId: categoryFind._id })
+        .select("-status")
+        .populate({
+          path: "userId",
+          select: ["username", "avatar", "name"],
+        })
+        .sort({ createdAt: -1 })
+        .populate({
+          path: "tags",
+          select: ["name"],
+        });
+      total = await Post.countDocuments({
+        status: "published",
+        categoryId: categoryFind._id,
       });
     } else {
       posts = posts
@@ -787,6 +850,24 @@ export const getPostComment = async (req, res) => {
       status: "success",
       message: "Get post comments success",
       result: postComments,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get All Tags
+// @route   GET /api/v1/posts/tags
+// @access  Private/user
+export const getAllTags = async (req, res) => {
+  try {
+    const tags = await Tag.find();
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get all tags success",
+      tags: tags,
     });
   } catch (error) {
     res

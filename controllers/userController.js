@@ -10,6 +10,7 @@ import { isPasswordValid } from "../utils/validate.js";
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find()
+      .sort({ createdAt: -1 })
       .select("-password")
       .populate("roleId", "name");
     res.status(StatusCodes.OK).json({
@@ -95,8 +96,9 @@ export const changePasswordUser = async (req, res) => {
 export const getPublicUserById = async (req, res) => {
   const { id } = req.params;
   try {
-    const user = await User.findById(id)
-      .select("name avatar bio gender social")
+    const user = await User.findById(id).select(
+      "name avatar bio gender social"
+    );
     if (!user) {
       return res
         .status(StatusCodes.BAD_REQUEST)

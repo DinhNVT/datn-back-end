@@ -31,6 +31,7 @@
     "nodemailer": "^6.9.1",
     "slick-carousel": "^1.8.1",
     "slugify": "^1.6.6",
+    "unidecode": "^0.1.8",
     "validator": "^13.9.0"
   },
   "devDependencies": {
