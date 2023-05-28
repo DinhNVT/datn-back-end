@@ -4,7 +4,9 @@ import authRole from "../middlewares/authRole.js";
 import {
   createPost,
   createPostComment,
+  createReportComment,
   deletePost,
+  deletePostComment,
   getAllPosts,
   getAllTags,
   getPostComment,
@@ -13,7 +15,9 @@ import {
   getPostLatest,
   getPostsMe,
   getPostsOption,
+  resolveReportComment,
   updatePost,
+  updatePostComment,
   uploadImagePost,
 } from "../controllers/postControllser.js";
 import uploadCloud from "../config/cloudinaryConfig.js";
@@ -39,11 +43,18 @@ PostRouter.get("/latest", getPostLatest);
 PostRouter.get("/get-all", getAllPosts);
 PostRouter.get("/detail", getPostDetail);
 PostRouter.get("/detail/:id", authRole(["user", "admin"]), getPostDetailById);
-PostRouter.post(
-  "/comment",
-  isLoggedIn,
+PostRouter.post("/comment", authRole(["user", "admin"]), createPostComment);
+PostRouter.put("/comment/:id", authRole(["user", "admin"]), updatePostComment);
+PostRouter.delete(
+  "/comment/:id",
   authRole(["user", "admin"]),
-  createPostComment
+  deletePostComment
+);
+PostRouter.post("/comment/report", createReportComment);
+PostRouter.put(
+  "/comment/report/:reportId/resolve",
+  authRole(["admin"]),
+  resolveReportComment
 );
 PostRouter.get("/comment", getPostComment);
 PostRouter.get("/option", getPostsOption);

@@ -4,6 +4,11 @@ const Schema = mongoose.Schema;
 const SubPostCommentSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    postCommentId: {
+      type: Schema.Types.ObjectId,
+      ref: "PostComment",
+      required: true,
+    },
     comment: { type: String, required: true },
   },
   {

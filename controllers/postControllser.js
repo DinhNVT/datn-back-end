@@ -17,6 +17,7 @@ import { giveCurrentDateTime } from "../utils/giveCurrentDateTime.js";
 import PostComment from "../model/PostComment.js";
 import SubPostComment from "../model/SubPostComment.js";
 import User from "../model/User.js";
+import ReportComment from "../model/ReportComment.js";
 
 // @desc    Create Post
 // @route   POST /api/v1/posts
@@ -801,6 +802,7 @@ export const createPostComment = async (req, res) => {
       //Create comment
       const newSubPostComment = await new SubPostComment({
         userId: req.userId,
+        postCommentId: baseId,
         comment: comment,
       });
 
@@ -818,6 +820,178 @@ export const createPostComment = async (req, res) => {
         message: "Create sub post comment success",
         result: subPostComment,
       });
+    } else {
+      res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
+    }
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Update Post Comment
+// @route   PUT /api/v1/posts/comment/:commentId
+// @access  private
+export const updatePostComment = async (req, res) => {
+  const { status } = req.query;
+  const { id } = req.params;
+  const { comment } = req.body;
+  try {
+    if (status === "base") {
+      const postComment = await PostComment.findById(id);
+
+      if (!postComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Post comment not found" });
+      }
+
+      // Check if the user is the owner of the comment
+      if (postComment.userId.toString() !== req.userId) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          status: "fail",
+          message: "Unauthorized to update this comment",
+        });
+      }
+
+      // Update the comment
+      postComment.comment = comment;
+      const updatedComment = await postComment.save();
+
+      res.status(StatusCodes.OK).json({
+        status: "success",
+        message: "Post comment updated successfully",
+        result: updatedComment,
+      });
+    } else if (status === "sub") {
+      const subPostComment = await SubPostComment.findById(id);
+
+      if (!subPostComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Post comment not found" });
+      }
+
+      // Check if the user is the owner of the comment
+      if (subPostComment.userId.toString() !== req.userId) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          status: "fail",
+          message: "Unauthorized to update this comment",
+        });
+      }
+
+      // Update the comment
+      subPostComment.comment = comment;
+      const updatedComment = await subPostComment.save();
+
+      res.status(StatusCodes.OK).json({
+        status: "success",
+        message: "Post comment updated successfully",
+        result: updatedComment,
+      });
+    } else {
+      res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
+    }
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Delete Post Comment
+// @route   DELETE /api/v1/posts/comment/:commentId
+// @access  private
+export const deletePostComment = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.query;
+
+  try {
+    if (status === "base") {
+      // Find the post comment by ID
+      const postComment = await PostComment.findById(id);
+
+      if (!postComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Post comment not found" });
+      }
+
+      // Check if the user is the owner of the comment
+      if (
+        postComment.userId.toString() !== req.userId &&
+        req.role !== "admin"
+      ) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          status: "fail",
+          message: "Unauthorized to delete this comment",
+        });
+      }
+
+      // Delete sub comments if exist
+      if (postComment.subComments.length > 0) {
+        await SubPostComment.deleteMany({
+          _id: { $in: postComment.subComments },
+        });
+      }
+
+      // Delete the comment
+      await PostComment.deleteOne({ _id: id });
+
+      res.status(StatusCodes.OK).json({
+        status: "success",
+        message: "Post comment deleted successfully",
+      });
+    } else if (status === "sub") {
+      // Find the sub comment by ID
+      const subComment = await SubPostComment.findById(id);
+
+      if (!subComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Sub comment not found" });
+      }
+
+      // Check if the user is the owner of the sub comment
+      if (subComment.userId.toString() !== req.userId && req.role !== "admin") {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+          status: "fail",
+          message: "Unauthorized to delete this sub comment",
+        });
+      }
+
+      // Find the base comment and remove the sub comment's ID
+      const postComment = await PostComment.findByIdAndUpdate(
+        subComment.postCommentId,
+        { $pull: { subComments: id } },
+        { new: true }
+      );
+
+      if (!postComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Base comment not found" });
+      }
+
+      // Delete the sub comment
+      await SubPostComment.deleteOne({ _id: id });
+
+      res.status(StatusCodes.OK).json({
+        status: "success",
+        message: "Sub comment deleted successfully",
+      });
+    } else {
+      res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
     }
   } catch (error) {
     res
@@ -833,6 +1007,7 @@ export const getPostComment = async (req, res) => {
   const { postId } = req.query;
   try {
     const postComments = await PostComment.find({ postId: postId })
+      .sort({ createdAt: -1 })
       .populate({
         path: "subComments",
         select: ["userId", "comment", "createdAt", "updatedAt"],
@@ -850,6 +1025,179 @@ export const getPostComment = async (req, res) => {
       status: "success",
       message: "Get post comments success",
       result: postComments,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Create Report Comment
+// @route   POST /api/v1/posts/comment/report
+// @access  Public
+export const createReportComment = async (req, res) => {
+  const { commentId, typeComment } = req.body;
+
+  try {
+    let commentFind;
+    let postId;
+    if (typeComment === "base") {
+      const reportComment = await ReportComment.findOne({
+        typeComment: "base",
+        commentId: commentId,
+      });
+      if (!!reportComment) {
+        return res.status(StatusCodes.OK).json({
+          status: "success",
+          message: "Report comment created successfully",
+        });
+      }
+      commentFind = await PostComment.findById(commentId);
+      if (!commentFind) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Comment not found" });
+      } else {
+        postId = commentFind.postId;
+      }
+    } else if (typeComment === "sub") {
+      const reportComment = await ReportComment.findOne({
+        typeComment: "sub",
+        commentId: commentId,
+      });
+      if (!!reportComment) {
+        return res.status(StatusCodes.OK).json({
+          status: "success",
+          message: "Report comment created successfully",
+        });
+      }
+      commentFind = await SubPostComment.findById(commentId).populate({
+        path: "postCommentId",
+        select: ["postId"],
+      });
+      if (!commentFind) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Comment not found" });
+      } else {
+        postId = commentFind.postCommentId.postId;
+      }
+    } else {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Type comment not found" });
+    }
+
+    // Create the report comment
+    const newReportComment = new ReportComment({
+      userId: commentFind.userId,
+      postId: postId,
+      commentId: commentId,
+      typeComment: typeComment,
+      comment: commentFind.comment,
+    });
+
+    // Save the report comment to the database
+    const reportComment = await newReportComment.save();
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Report comment created successfully",
+      result: reportComment,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Resolve Report Comment
+// @route   PUT /api/v1/posts/comment/report/:reportId/resolve
+// @access  private/Admin
+export const resolveReportComment = async (req, res) => {
+  const { reportId } = req.params;
+
+  try {
+    // Find the report comment by ID
+    const reportComment = await ReportComment.findById(reportId);
+    if (!reportComment) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Report comment not found" });
+    } else if (reportComment.status === "resolved") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "Report comment resolved" });
+    }
+
+    if (reportComment.typeComment === "base") {
+      // Find the post comment by ID
+      const postComment = await PostComment.findById(reportComment.commentId);
+      if (!postComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Post comment not found" });
+      }
+
+      // Delete sub comments if exist
+      if (postComment.subComments.length > 0) {
+        await SubPostComment.deleteMany({
+          _id: { $in: postComment.subComments },
+        });
+      }
+
+      // Delete the comment
+      await PostComment.deleteOne({ _id: reportComment.commentId });
+    } else if (reportComment.typeComment === "sub") {
+      // Find the sub comment by ID
+      const subComment = await SubPostComment.findById(reportComment.commentId);
+      if (!subComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Sub comment not found" });
+      }
+
+      // Find the base comment and remove the sub comment's ID
+      const postComment = await PostComment.findByIdAndUpdate(
+        subComment.postCommentId,
+        { $pull: { subComments: reportComment.commentId } },
+        { new: true }
+      );
+
+      if (!postComment) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Base comment not found" });
+      }
+
+      // Delete the sub comment
+      await SubPostComment.deleteOne({ _id: reportComment.commentId });
+    } else {
+      res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
+    }
+
+    // Update the status of the report comment to "resolved"
+    const updatedReportComment = await ReportComment.findOneAndUpdate(
+      { _id: reportId },
+      { status: "resolved" },
+      { new: true }
+    );
+
+    if (!updatedReportComment) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Report comment not found" });
+    }
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Report comment resolved successfully",
+      result: updatedReportComment,
     });
   } catch (error) {
     res
