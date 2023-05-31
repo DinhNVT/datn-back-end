@@ -65,7 +65,7 @@ export const registerUser = async (req, res) => {
     }
     //Create user
     const newUser = await new User({
-      username: username,
+      username: username.toLowerCase(),
       name: capitalizeFirstName(name),
       email: email.toLowerCase(),
       password: hashedPassword,
