@@ -10,17 +10,29 @@ import {
   getPublicUserById,
   getPublicUserByUsername,
   getUserById,
+  getUserByUserId,
   getUserFavorites,
   unFollowUser,
+  updateAvatarUser,
+  updateUserProfile,
 } from "../controllers/userController.js";
 import authRole from "../middlewares/authRole.js";
+import upload from "../config/multerConfig.js";
 
 const UserRouter = express.Router();
 
 UserRouter.get("/", authRole(["admin"]), getAllUsers);
-UserRouter.get("/:id", authRole(["user", "user"]), getUserById);
-UserRouter.post(
-  "/change-password",
+UserRouter.get("/:id", authRole(["user", "admin"]), getUserById);
+UserRouter.get("/user/id", authRole(["user", "admin"]), getUserByUserId);
+UserRouter.put("/:id", authRole(["user", "admin"]), updateUserProfile);
+UserRouter.put(
+  "/avatar/:id",
+  authRole(["user", "admin"]),
+  upload.single("image"),
+  updateAvatarUser
+);
+UserRouter.put(
+  "/change-password/user",
   authRole(["user", "admin"]),
   changePasswordUser
 );

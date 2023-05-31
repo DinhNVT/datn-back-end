@@ -10,7 +10,13 @@ const UserSchema = new Schema(
     avatar: { type: String, default: "" },
     bio: {
       type: String,
-      enum: ["Nông dân", "Quản trị viên", "Ẩn danh"],
+      enum: [
+        "Nông dân",
+        "Quản trị viên",
+        "Chủ trang trại",
+        "Nhà nghiên cứu",
+        "Ẩn danh",
+      ],
       default: "Ẩn danh",
     },
     careers: [

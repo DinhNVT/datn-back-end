@@ -1,10 +1,24 @@
 import { StatusCodes } from "http-status-codes";
 import User from "../model/User.js";
 import bcrypt from "bcryptjs";
-import { isPasswordValid } from "../utils/validate.js";
+import {
+  isFullNameValid,
+  isPasswordValid,
+  isValidUrl,
+} from "../utils/validate.js";
 import FavoritePost from "../model/FavoritePost.js";
 import Post from "../model/Post.js";
 import Follow from "../model/Follow.js";
+import { isValidUsername } from "../utils/validate.js";
+import {
+  getStorage,
+  ref,
+  getDownloadURL,
+  uploadBytesResumable,
+} from "firebase/storage";
+import { initializeApp } from "firebase/app";
+import { firebaseConfig } from "../config/firebaseConfig.js";
+import { giveCurrentDateTime } from "../utils/giveCurrentDateTime.js";
 
 // @desc    Get All Users
 // @route   POST /api/v1/users
@@ -33,7 +47,7 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
   const { id } = req.params;
   try {
-    if (id != req.userId) {
+    if (id.toString() !== req.userId && req.role !== "admin") {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ status: "fail", message: "You are not allowed" });
@@ -53,6 +67,177 @@ export const getUserById = async (req, res) => {
   }
 };
 
+// @desc    Get User By Id
+// @route   POST /api/v1/users/:id
+// @access  Private/User
+export const getUserByUserId = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId)
+      .select("-password")
+      .populate("roleId", "name");
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get user successfully",
+      user,
+    });
+  } catch (err) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: err.message });
+  }
+};
+
+// @desc    Update Post Comment
+// @route   PUT /api/v1/users
+// @access  private
+export const updateUserProfile = async (req, res) => {
+  const { status } = req.query;
+  const { id } = req.params;
+  try {
+    if (id.toString() !== req.userId && req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    if (status === "name") {
+      const { name } = req.body;
+      if (!isFullNameValid(name)) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid name" });
+      }
+      user.name = name;
+    } else if (status === "username") {
+      const { username } = req.body;
+      const userFindUsername = await User.findOne({ username: username });
+      if (userFindUsername) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "Username already exists" });
+      }
+      if (!isValidUsername(username)) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid username" });
+      }
+      user.username = username.toLowerCase();
+    } else if (status === "social") {
+      const { social } = req.body;
+      if (!isValidUrl(social.facebook) && social.facebook.length > 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid facebook url" });
+      }
+      if (!isValidUrl(social.instagram) && social.instagram.length > 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid instagram url" });
+      }
+      if (!isValidUrl(social.youtube) && social.youtube.length > 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid youtube url" });
+      }
+      if (!isValidUrl(social.tiktok) && social.tiktok.length > 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ status: "fail", message: "Invalid tiktok url" });
+      }
+      user.social = social;
+    } else if (status === "bio") {
+      const { bio } = req.body;
+      user.bio = bio;
+    } else {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
+    }
+
+    await user.save();
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User updated successfully",
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Update Post Comment
+// @route   PUT /api/v1/users/avatar/:id
+// @access  private
+export const updateAvatarUser = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.query;
+  try {
+    if (id.toString() !== req.userId && req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    if (status === "delete") {
+      user.avatar = "";
+    } else if (status === "update") {
+      if (!req?.file?.originalname) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ status: "fail", message: "File not found" });
+      }
+      initializeApp(firebaseConfig);
+      const storage = getStorage();
+      const dateTime = giveCurrentDateTime();
+      const storageRef = ref(
+        storage,
+        `avatars-image/${req.file.originalname + "       " + dateTime}`
+      );
+      const metadata = {
+        contentType: req.file.mimetype,
+      };
+      const snapshot = await uploadBytesResumable(
+        storageRef,
+        req.file.buffer,
+        metadata
+      );
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      user.avatar = downloadURL;
+    } else {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Not found status",
+      });
+    }
+
+    await user.save();
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User updated successfully",
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
 // @desc    Change Password
 // @route   POST /api/v1/users/change-password
 // @access  Private/User
@@ -60,8 +245,13 @@ export const changePasswordUser = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
     const user = await User.findById(req.userId);
-    const validPassword = await bcrypt.compare(oldPassword, user.password);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "User not found" });
+    }
 
+    const validPassword = await bcrypt.compare(oldPassword, user.password);
     if (!validPassword) {
       return res
         .status(StatusCodes.NOT_FOUND)

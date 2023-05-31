@@ -58,7 +58,23 @@ export const isFullNameValid = (fullName) => {
 };
 
 export const capitalizeFirstName = (fullName) => {
-  const names = fullName.trim().split(' ');
-  const capitalizedNames = names.map(name => name.charAt(0).toUpperCase() + name.slice(1).toLowerCase());
-  return capitalizedNames.join(' ');
-}
+  const names = fullName.trim().split(" ");
+  const capitalizedNames = names.map(
+    (name) => name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+  );
+  return capitalizedNames.join(" ");
+};
+
+export const isValidUsername = (username) => {
+  const regex = /^[a-z0-9]+$/i;
+  return regex.test(username);
+};
+
+export const isValidUrl = (url) => {
+  try {
+    new URL(url);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
