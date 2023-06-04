@@ -41,7 +41,6 @@ export const createPost = async (req, res) => {
       if (req.file?.filename) {
         cloudinary.uploader.destroy(req.file?.filename);
       }
-      console.log("1");
       return res
         .status(StatusCodes.BAD_REQUEST)
         .json({ status: "fail", message: "Category post doesn't exist" });
@@ -51,7 +50,6 @@ export const createPost = async (req, res) => {
       if (req.file?.filename) {
         cloudinary.uploader.destroy(req.file?.filename);
       }
-      console.log("2");
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: "fail",
         message: "length title is min:1 and max 255 only",
@@ -62,7 +60,6 @@ export const createPost = async (req, res) => {
       if (req.file?.filename) {
         cloudinary.uploader.destroy(req.file?.filename);
       }
-      console.log("3");
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: "fail",
         message: "length content is min:10",
@@ -73,7 +70,6 @@ export const createPost = async (req, res) => {
       if (req.file?.filename) {
         cloudinary.uploader.destroy(req.file?.filename);
       }
-      console.log("4");
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: "fail",
         message: "Must have at least 6 tags",
@@ -167,6 +163,13 @@ export const deletePost = async (req, res) => {
       { $pull: { posts: post._id } },
       { new: true }
     );
+
+    const postComments = await PostComment.find({ postId });
+    await PostComment.deleteMany({
+      postId: postId,
+    });
+    const postCommentIds = postComments.map((postComment) => postComment._id);
+    await SubPostComment.deleteMany({ postCommentId: { $in: postCommentIds } });
 
     res.status(StatusCodes.OK).json({
       status: "success",
@@ -821,7 +824,7 @@ export const createPostComment = async (req, res) => {
         result: subPostComment,
       });
     } else {
-      res.status(StatusCodes.NOT_FOUND).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         status: "fail",
         message: "Not found status",
       });
@@ -894,7 +897,7 @@ export const updatePostComment = async (req, res) => {
         result: updatedComment,
       });
     } else {
-      res.status(StatusCodes.NOT_FOUND).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         status: "fail",
         message: "Not found status",
       });
