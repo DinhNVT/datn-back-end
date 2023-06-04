@@ -127,6 +127,13 @@ export const forgetPasswordUser = async (req, res) => {
         .json({ status: "fail", message: "Invalid email" });
     }
 
+    if (userExists.isBlocked) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "User is already blocked",
+      });
+    }
+
     if (!userExists.isVerify) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: "fail",
@@ -187,8 +194,17 @@ export const loginUser = async (req, res) => {
     if (!user) {
       return res
         .status(StatusCodes.NOT_FOUND)
-        .json({ status: "fail", message: "username does not exist" });
-    } else if (!user.isVerify) {
+        .json({ status: "fail", message: "user does not exist" });
+    }
+
+    if (user.isBlocked) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "User is already blocked",
+      });
+    }
+
+    if (!user.isVerify) {
       return res.status(StatusCodes.NOT_FOUND).json({
         status: "fail",
         message:

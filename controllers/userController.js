@@ -1,7 +1,11 @@
 import { StatusCodes } from "http-status-codes";
 import User from "../model/User.js";
+import Role from "../model/Role.js";
+import RefreshToken from "../model/RefreshToken.js";
 import bcrypt from "bcryptjs";
 import {
+  capitalizeFirstName,
+  isEmailValid,
   isFullNameValid,
   isPasswordValid,
   isValidUrl,
@@ -19,6 +23,338 @@ import {
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../config/firebaseConfig.js";
 import { giveCurrentDateTime } from "../utils/giveCurrentDateTime.js";
+import { convertEmailToPassword } from "../utils/convertEmailToPassword.js";
+
+// @desc    Register User
+// @route   POST /api/v1/users/
+// @access  Public
+export const addUser = async (req, res) => {
+  try {
+    const { name, email, bio, roleId } = req.body;
+    if (!isFullNameValid(name)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "Invalid name" });
+    }
+
+    if (!isEmailValid(email)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "Invalid email" });
+    }
+
+    //Check user exists
+    const userExists = await User.findOne({ email: email.toLowerCase() });
+    if (userExists) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "User already exists" });
+    }
+
+    const role = await Role.findById(roleId);
+    if (!role) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Role not found" });
+    }
+
+    let avatar;
+
+    if (!req?.file?.originalname) {
+      avatar = "";
+    } else {
+      initializeApp(firebaseConfig);
+      const storage = getStorage();
+      const dateTime = giveCurrentDateTime();
+      const storageRef = ref(
+        storage,
+        `avatars-image/${req.file.originalname + "       " + dateTime}`
+      );
+      const metadata = {
+        contentType: req.file.mimetype,
+      };
+      const snapshot = await uploadBytesResumable(
+        storageRef,
+        req.file.buffer,
+        metadata
+      );
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      avatar = downloadURL;
+    }
+
+    //hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(
+      convertEmailToPassword(email),
+      salt
+    );
+
+    var username = email.split("@")[0];
+    const userWithSameUsername = await User.findOne({ username });
+    if (userWithSameUsername) {
+      const randomSuffix = Math.floor(Math.random() * 1000);
+      username = `${username}${randomSuffix}`;
+    }
+
+    //Create user
+    const newUser = await new User({
+      username: username.toLowerCase(),
+      name: capitalizeFirstName(name),
+      email: email.toLowerCase(),
+      avatar: avatar,
+      bio: bio,
+      password: hashedPassword,
+      roleId: role._id,
+      isVerify: true,
+    });
+
+    //Save to db
+    const user = await newUser.save();
+    //Hidden password
+    const { password: pwd, ...others } = user._doc;
+    res.status(StatusCodes.CREATED).json({
+      status: "success",
+      message: "Create user successfully",
+      ...others,
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: "internal_server_error" });
+  }
+};
+
+// @desc    Block User
+// @route   PUT /api/v1/users/block/:id
+// @access  Private/Admin
+export const blockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    if (user.isBlocked) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "User is already blocked" });
+    }
+
+    user.isBlocked = true;
+    await user.save();
+    await RefreshToken.deleteMany({ userId: id });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User blocked successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: "internal_server_error" });
+  }
+};
+
+// @desc    Unblock User
+// @route   PUT /api/v1/users/unblock/:id
+// @access  Private/Admin
+export const unblockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    if (!user.isBlocked) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ status: "fail", message: "User is not blocked" });
+    }
+
+    user.isBlocked = false;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User unblocked successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: "internal_server_error" });
+  }
+};
+
+// @desc    Block Users
+// @route   PUT /api/v1/users/block-unblock/many
+// @access  Private/Admin
+export const blockAndUnblockUsers = async (req, res) => {
+  try {
+    const { userIds, block } = req.body;
+
+    if (req.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        status: "fail",
+        message: "Unauthorized",
+      });
+    }
+
+    // Find users to block
+    const usersToBlock = await User.find({ _id: { $in: userIds } });
+    if (!usersToBlock.length) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Users not found",
+      });
+    }
+
+    // Block users
+    await User.updateMany(
+      { _id: { $in: userIds } },
+      { $set: { isBlocked: block } }
+    );
+
+    if (block === true) {
+      await RefreshToken.deleteMany({ userId: { $in: userIds } });
+    }
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Users blocked successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: "internal_server_error" });
+  }
+};
+
+// @desc    Change User Role
+// @route   PUT /api/v1/users/change-role/:id
+// @access  Private/Admin
+export const changeUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (req.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        status: "fail",
+        message: "Unauthorized",
+      });
+    }
+
+    if (role !== "admin" && role !== "user") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "Invalid role",
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "User not found",
+      });
+    }
+
+    const roleFind = await Role.findOne({ name: role });
+    if (!roleFind) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Role not found",
+      });
+    }
+
+    user.roleId = roleFind._id;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User role changed successfully",
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Change User Roles
+// @route   PUT /api/v1/users/change-roles
+// @access  Private/Admin
+export const changeUserRoles = async (req, res) => {
+  try {
+    const { userIds, role } = req.body;
+
+    if (req.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        status: "fail",
+        message: "Unauthorized",
+      });
+    }
+
+    if (role !== "admin" && role !== "user") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "Invalid role",
+      });
+    }
+
+    const roleFind = await Role.findOne({ name: role });
+    if (!roleFind) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Role not found",
+      });
+    }
+
+    for (const userId of userIds) {
+      const user = await User.findById(userId);
+      if (!user) {
+        continue;
+      }
+
+      user.roleId = roleFind._id;
+      await user.save();
+    }
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User roles changed successfully",
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
 
 // @desc    Get All Users
 // @route   POST /api/v1/users
@@ -178,9 +514,9 @@ export const updateUserProfile = async (req, res) => {
 // @route   PUT /api/v1/users/avatar/:id
 // @access  private
 export const updateAvatarUser = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.query;
   try {
+    const { id } = req.params;
+    const { status } = req.query;
     if (id.toString() !== req.userId && req.role !== "admin") {
       return res
         .status(StatusCodes.UNAUTHORIZED)
@@ -193,6 +529,15 @@ export const updateAvatarUser = async (req, res) => {
         .status(StatusCodes.NOT_FOUND)
         .json({ status: "fail", message: "User not found" });
     }
+
+    // Xóa ảnh cũ nếu status là "update" hoặc "delete"
+    // if (status === "update" || status === "delete") {
+    //   if (user.avatar) {
+    //     const fileName = user.avatar.split("/").pop();
+    //     const storageRef = ref(storage, `avatars-image/${fileName}`);
+    //     await deleteObject(storageRef);
+    //   }
+    // }
 
     if (status === "delete") {
       user.avatar = "";
