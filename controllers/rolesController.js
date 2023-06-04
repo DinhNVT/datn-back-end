@@ -23,3 +23,21 @@ export const createRolesController = async (req, res) => {
     res.status(StatusCodes.NOT_FOUND).json({ message: err.message });
   }
 };
+
+// @desc    Get all role
+// @route   GET /api/v1/roles
+// @access  Private/admin
+export const getAllRoles = async (req, res) => {
+  try {
+    const roles =await Role.find();
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "All roles retrieved successfully",
+      roles,
+    });
+  } catch (err) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: err.message });
+  }
+};

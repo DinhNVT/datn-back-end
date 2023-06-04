@@ -19,12 +19,6 @@ const UserSchema = new Schema(
       ],
       default: "Ẩn danh",
     },
-    careers: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Career",
-      },
-    ],
     social: {
       facebook: {
         type: String,
