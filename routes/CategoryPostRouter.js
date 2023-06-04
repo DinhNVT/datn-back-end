@@ -14,7 +14,7 @@ CategoryPostRouter.post("/", authRole(["admin"]), createCategoryPost);
 CategoryPostRouter.get("/", getAllCategories);
 CategoryPostRouter.get("/:slug", getAllCategoryDetail);
 CategoryPostRouter.get(
-  "/by-admin",
+  "/get/by-admin",
   authRole(["admin"]),
   getAllCategoriesByAdmin
 );
