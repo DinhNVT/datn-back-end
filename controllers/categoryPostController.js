@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import CategoryPost from "../model/CategoryPost.js";
+import Post from "../model/Post.js";
 import { CategoryPostSlug } from "../utils/generateSlug.js";
 
 // @desc    Create Category post
@@ -8,10 +9,22 @@ import { CategoryPostSlug } from "../utils/generateSlug.js";
 export const createCategoryPost = async (req, res) => {
   const { name, description } = req.body;
   try {
+    let slug = CategoryPostSlug(name);
+
+    let isSlugUnique = false;
+    while (!isSlugUnique) {
+      const existingCategory = await CategoryPost.findOne({ slug });
+      if (!existingCategory) {
+        isSlugUnique = true;
+      } else {
+        slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+      }
+    }
+
     const newCategoryPost = new CategoryPost({
       name: name,
       description: description,
-      slug: CategoryPostSlug(name),
+      slug: slug,
     });
     const result = await newCategoryPost.save();
 
@@ -25,6 +38,93 @@ export const createCategoryPost = async (req, res) => {
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ status: "fail", message: err.message });
+  }
+};
+
+// @desc    Update Category post
+// @route   PUT /api/v1/category-post/:id
+// @access  Private/Admin
+export const updateCategoryPost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    let slug = CategoryPostSlug(name);
+    let isSlugUnique = false;
+    while (!isSlugUnique) {
+      const existingCategory = await CategoryPost.findOne({
+        slug,
+        _id: { $ne: id },
+      });
+      if (!existingCategory) {
+        isSlugUnique = true;
+      } else {
+        slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+      }
+    }
+
+    const updatedCategory = await CategoryPost.findByIdAndUpdate(
+      id,
+      {
+        name,
+        description,
+        slug,
+      },
+      { new: true }
+    );
+
+    if (!updatedCategory) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Category post not found",
+      });
+    }
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Category post updated successfully",
+      category: updatedCategory,
+    });
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: err.message,
+    });
+  }
+};
+
+// @desc    Delete Category post
+// @route   DELETE /api/v1/category-post/:id
+// @access  Private/Admin
+export const deleteCategoryPost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await CategoryPost.findById(id);
+    if (!category) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Category not found",
+      });
+    }
+
+    if (category.posts.length > 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: "fail",
+        message: "Cannot delete category with existing posts",
+      });
+    }
+
+    await CategoryPost.findByIdAndDelete(id);
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Category deleted successfully",
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
   }
 };
 
@@ -102,5 +202,47 @@ export const getAllCategoryDetail = async (req, res) => {
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ status: "fail", message: err.message });
+  }
+};
+
+// @desc    Get Posts by Category
+// @route   GET /api/v1/category-post/posts/:categoryId
+// @access  Public
+export const getPostsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    // Kiểm tra xem category có tồn tại không
+    const categoryExists = await CategoryPost.findOne({ _id: categoryId });
+    if (!categoryExists) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Category not found",
+      });
+    }
+
+    // Lấy danh sách bài viết thuộc category
+    const posts = await Post.find({ categoryId })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name"],
+      });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get posts successfully",
+      posts: posts,
+      category: categoryExists,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
   }
 };
