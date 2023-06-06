@@ -183,6 +183,72 @@ export const deletePost = async (req, res) => {
   }
 };
 
+// @desc    Delete Multiple Posts
+// @route   DELETE /api/v1/posts
+// @access  Private/Admin
+export const deleteMultiplePosts = async (req, res) => {
+  const { postIds } = req.body;
+  try {
+    if (req.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ status: "fail", message: "Unauthorized" });
+    }
+
+    const postsToDelete = await Post.find({ _id: { $in: postIds } });
+
+    const deletedPostThumbnails = postsToDelete.map((post) => {
+      if (!!post.thumbnail_url) {
+        const splitThumbnail = post.thumbnail_url.split("/");
+        return `${splitThumbnail[splitThumbnail.length - 2]}/${
+          splitThumbnail[splitThumbnail.length - 1].split(".")[0]
+        }`;
+      }
+      return null;
+    });
+
+    await Post.deleteMany({ _id: { $in: postIds } });
+
+    const deletedPostComments = await PostComment.find({
+      postId: { $in: postIds },
+    });
+
+    await PostComment.deleteMany({ postId: { $in: postIds } });
+
+    const deletedPostCommentIds = deletedPostComments.map(
+      (comment) => comment._id
+    );
+
+    await SubPostComment.deleteMany({
+      postCommentId: { $in: deletedPostCommentIds },
+    });
+
+    await CategoryPost.updateMany(
+      { posts: { $in: postIds } },
+      { $pull: { posts: { $in: postIds } } }
+    );
+
+    const filteredThumbnails = deletedPostThumbnails.filter(
+      (thumbnail) => thumbnail !== null
+    );
+    await Promise.all(
+      filteredThumbnails.map((thumbnail) =>
+        cloudinary.uploader.destroy(thumbnail)
+      )
+    );
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Posts deleted successfully",
+    });
+  } catch (err) {
+    console.log(err.message);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: err.message });
+  }
+};
+
 // @desc    Update Post
 // @route   PUT /api/v1/posts/:id
 // @access  Private/User
@@ -198,7 +264,7 @@ export const updatePost = async (req, res) => {
     }
 
     // Check if the logged in user is the owner of the post
-    if (post.userId.toString() !== req.userId) {
+    if (post.userId.toString() !== req.userId && req.role !== "admin") {
       return res
         .status(StatusCodes.UNAUTHORIZED)
         .json({ status: "fail", message: "Unauthorized" });
@@ -360,6 +426,43 @@ export const uploadImagePost = async (req, res) => {
   }
 };
 
+// @desc    Block multiple posts
+// @route   PUT /api/posts/block
+// @access  Private/Admin
+export const blockMultiplePosts = async (req, res) => {
+  const { postIds } = req.body;
+  try {
+    // Update multiple posts with blocked status
+    await Post.updateMany({ _id: { $in: postIds } }, { status: "blocked" });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Posts blocked successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Block multiple posts
+// @route   PUT /api/posts/unblock
+// @access  Private/Admin
+export const unblockMultiplePosts = async (req, res) => {
+  const { postIds } = req.body;
+
+  try {
+    await Post.updateMany(
+      { _id: { $in: postIds }, status: "blocked" },
+      { status: "draft" }
+    );
+
+    res
+      .status(200)
+      .json({ success: true, message: "Posts blocked successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // @desc    Get Post Latest
 // @route   GET /api/v1/posts/latest
 // @access  Public
@@ -473,6 +576,33 @@ export const getPostDetail = async (req, res) => {
         select: ["name"],
       })
       .select("-status");
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Get post latest success",
+      result: post,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get Post Detail
+// @route   GET /api/v1/posts/admin/detail/:id
+// @access  Public
+export const getPostDetailByIdAdmin = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const post = await Post.findById(id)
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name", "bio", "gender", "social"],
+      })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      });
     res.status(StatusCodes.OK).json({
       status: "success",
       message: "Get post latest success",
@@ -649,6 +779,34 @@ export const getPostsOption = async (req, res) => {
       results: posts.length,
       pagination,
       message: "Posts option fetched successfully",
+      posts,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get All Posts
+// @route   GET /api/v1/posts/admin/get-all
+// @access  Public
+export const getAllPostsByAdmin = async (req, res) => {
+  try {
+    const posts = await Post.find()
+      .populate({
+        path: "categoryId",
+        select: ["name"],
+      })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Posts fetched successfully",
       posts,
     });
   } catch (error) {
