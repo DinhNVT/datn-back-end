@@ -2,20 +2,25 @@ import express from "express";
 import { isLoggedIn } from "../middlewares/isLoggedIn.js";
 import authRole from "../middlewares/authRole.js";
 import {
+  blockMultiplePosts,
   createPost,
   createPostComment,
   createReportComment,
+  deleteMultiplePosts,
   deletePost,
   deletePostComment,
   getAllPosts,
+  getAllPostsByAdmin,
   getAllTags,
   getPostComment,
   getPostDetail,
   getPostDetailById,
+  getPostDetailByIdAdmin,
   getPostLatest,
   getPostsMe,
   getPostsOption,
   resolveReportComment,
+  unblockMultiplePosts,
   updatePost,
   updatePostComment,
   uploadImagePost,
@@ -33,7 +38,7 @@ PostRouter.post(
 );
 PostRouter.put(
   "/:id",
-  authRole(["user"]),
+  authRole(["user", "admin"]),
   uploadCloud.single("thumbnail"),
   updatePost
 );
@@ -60,5 +65,19 @@ PostRouter.get("/comment", getPostComment);
 PostRouter.get("/option", getPostsOption);
 PostRouter.get("/me", authRole(["user", "admin"]), getPostsMe);
 PostRouter.get("/tags", authRole(["user", "admin"]), getAllTags);
+
+PostRouter.get("/admin/get-all", authRole(["admin"]), getAllPostsByAdmin);
+PostRouter.put("/admin/block", authRole(["admin"]), blockMultiplePosts);
+PostRouter.put("/admin/unblock", authRole(["admin"]), unblockMultiplePosts);
+PostRouter.post(
+  "/admin/delete-many-posts",
+  authRole(["admin"]),
+  deleteMultiplePosts
+);
+PostRouter.get(
+  "/admin/detail/:id",
+  authRole(["admin"]),
+  getPostDetailByIdAdmin
+);
 
 export default PostRouter;
