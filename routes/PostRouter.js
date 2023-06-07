@@ -5,7 +5,6 @@ import {
   blockMultiplePosts,
   createPost,
   createPostComment,
-  createReportComment,
   deleteMultiplePosts,
   deletePost,
   deletePostComment,
@@ -19,12 +18,18 @@ import {
   getPostLatest,
   getPostsMe,
   getPostsOption,
-  resolveReportComment,
   unblockMultiplePosts,
   updatePost,
   updatePostComment,
   uploadImagePost,
 } from "../controllers/postControllser.js";
+import {
+  createReportComment,
+  getAllReportComments,
+  resolveReportComment,
+  resolveMultipleReportComments,
+  deleteMultipleReportComments,
+} from "../controllers/reportCommentController.js";
 import uploadCloud from "../config/cloudinaryConfig.js";
 import upload from "../config/multerConfig.js";
 
@@ -55,12 +60,26 @@ PostRouter.delete(
   authRole(["user", "admin"]),
   deletePostComment
 );
+
+//report comment
 PostRouter.post("/comment/report", createReportComment);
+PostRouter.get("/comment/report", authRole(["admin"]), getAllReportComments);
 PostRouter.put(
   "/comment/report/:reportId/resolve",
   authRole(["admin"]),
   resolveReportComment
 );
+PostRouter.put(
+  "/comment/report/resolve/multiple",
+  authRole(["admin"]),
+  resolveMultipleReportComments
+);
+PostRouter.put(
+  "/comment/report/delete/multiple",
+  authRole(["admin"]),
+  deleteMultipleReportComments
+);
+
 PostRouter.get("/comment", getPostComment);
 PostRouter.get("/option", getPostsOption);
 PostRouter.get("/me", authRole(["user", "admin"]), getPostsMe);
