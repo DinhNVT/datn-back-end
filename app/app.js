@@ -11,6 +11,7 @@ import UserRouter from "../routes/UserRouter.js";
 import PostRouter from "../routes/PostRouter.js";
 import CategoryPostRouter from "../routes/CategoryPostRouter.js";
 import ContactRouter from "../routes/ContactRouter.js";
+import DashboardRouter from "../routes/DashboardRouter.js";
 dotenv.config();
 //db connect
 dbConnect();
@@ -33,5 +34,6 @@ app.use("/api/v1/users/", UserRouter);
 app.use("/api/v1/posts/", PostRouter);
 app.use("/api/v1/category-post/", CategoryPostRouter);
 app.use("/api/v1/contact/", ContactRouter);
+app.use("/api/v1/dashboard/", DashboardRouter);
 
 export default app;

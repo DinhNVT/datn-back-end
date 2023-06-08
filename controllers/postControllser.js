@@ -56,7 +56,7 @@ export const createPost = async (req, res) => {
       });
     }
 
-    if (!validator.isLength(content, { min: 10 })) {
+    if (!validator.isLength(content, { min: 1 })) {
       if (req.file?.filename) {
         cloudinary.uploader.destroy(req.file?.filename);
       }
