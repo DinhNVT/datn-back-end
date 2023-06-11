@@ -11,6 +11,7 @@ import {
   getAllPosts,
   getAllPostsByAdmin,
   getAllTags,
+  getFollowedPosts,
   getPostComment,
   getPostDetail,
   getPostDetailById,
@@ -98,5 +99,7 @@ PostRouter.get(
   authRole(["admin"]),
   getPostDetailByIdAdmin
 );
+
+PostRouter.get("/followed", authRole(["admin", "user"]), getFollowedPosts);
 
 export default PostRouter;
