@@ -18,6 +18,7 @@ import PostComment from "../model/PostComment.js";
 import SubPostComment from "../model/SubPostComment.js";
 import User from "../model/User.js";
 import ReportComment from "../model/ReportComment.js";
+import Follow from "../model/Follow.js";
 
 // @desc    Create Post
 // @route   POST /api/v1/posts
@@ -549,6 +550,73 @@ export const getAllPosts = async (req, res) => {
       pagination,
       message: "Posts fetched successfully",
       posts,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get Posts by User's Followings
+// @route   GET /api/v1/posts/followed
+// @access  Private/User
+export const getFollowedPosts = async (req, res) => {
+  try {
+    const currentUserId = req.userId;
+    const followingUsers = await Follow.find({
+      follower: currentUserId,
+    }).distinct("following");
+
+    const posts = await Post.find({
+      userId: { $in: followingUsers },
+      status: "published",
+    })
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name"],
+      })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .sort({ createdAt: -1 });
+
+    //pagination
+    //page
+    const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+    //limit
+    const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+    //startIdx
+    const startIndex = (page - 1) * limit;
+    //endIdx
+    const endIndex = page * limit;
+    //total
+    const total = posts.length;
+
+    const paginatedPosts = posts.slice(startIndex, endIndex);
+
+    //pagination results
+    const pagination = {};
+    if (endIndex < total) {
+      pagination.next = {
+        page: page + 1,
+        limit,
+      };
+    }
+    if (startIndex > 0) {
+      pagination.prev = {
+        page: page - 1,
+        limit,
+      };
+    }
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      total,
+      results: paginatedPosts.length,
+      pagination,
+      message: "Followed posts fetched successfully",
+      posts: paginatedPosts,
     });
   } catch (error) {
     res
