@@ -12,6 +12,8 @@ import {
   getAllPostsByAdmin,
   getAllTags,
   getFollowedPosts,
+  getMostPopularTags,
+  getMostViewedPosts,
   getPostComment,
   getPostDetail,
   getPostDetailById,
@@ -19,6 +21,7 @@ import {
   getPostLatest,
   getPostsMe,
   getPostsOption,
+  getRelatedPosts,
   unblockMultiplePosts,
   updatePost,
   updatePostComment,
@@ -101,5 +104,8 @@ PostRouter.get(
 );
 
 PostRouter.get("/followed", authRole(["admin", "user"]), getFollowedPosts);
+PostRouter.get("/most-view", getMostViewedPosts);
+PostRouter.get("/most-tags", getMostPopularTags);
+PostRouter.get("/relate-posts", getRelatedPosts);
 
 export default PostRouter;

@@ -12,6 +12,8 @@ import {
   getAllUsers,
   getFollowers,
   getFollowing,
+  getFollowingIds,
+  getPostIdUserFavorites,
   getPublicUserById,
   getPublicUserByUsername,
   getUserById,
@@ -59,6 +61,11 @@ UserRouter.put(
 //Favorite router
 UserRouter.post("/favorite", authRole(["user", "admin"]), addToFavorites);
 UserRouter.get("/favorite/:id", authRole(["user", "admin"]), getUserFavorites);
+UserRouter.get(
+  "/favorite-post/id",
+  authRole(["user", "admin"]),
+  getPostIdUserFavorites
+);
 UserRouter.delete(
   "/favorite/:id",
   authRole(["user", "admin"]),
@@ -70,4 +77,5 @@ UserRouter.post("/follow/:userId", authRole(["user", "admin"]), followUser);
 UserRouter.delete("/follow/:userId", authRole(["user", "admin"]), unFollowUser);
 UserRouter.get("/follower/:userId", getFollowers);
 UserRouter.get("/following/:userId", getFollowing);
+UserRouter.get("/following-ids/get", authRole(["user", "admin"]), getFollowingIds);
 export default UserRouter;
