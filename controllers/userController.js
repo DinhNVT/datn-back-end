@@ -696,6 +696,7 @@ export const addToFavorites = async (req, res) => {
       userId: req.userId,
       postId: postId,
     });
+
     if (favorite) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: "fail",
@@ -709,6 +710,8 @@ export const addToFavorites = async (req, res) => {
     });
 
     await newFavorite.save();
+
+    await Post.findByIdAndUpdate(postId, { $inc: { like_count: 1 } });
 
     res.status(StatusCodes.OK).json({
       status: "success",
@@ -738,6 +741,8 @@ export const deleteFavoritePost = async (req, res) => {
         .status(StatusCodes.NOT_FOUND)
         .json({ status: "fail", message: "Favorite post not found" });
     }
+
+    await Post.findByIdAndUpdate(id, { $inc: { like_count: -1 } });
 
     res.status(StatusCodes.OK).json({
       status: "success",
@@ -779,6 +784,34 @@ export const getUserFavorites = async (req, res) => {
     res.status(StatusCodes.OK).json({
       status: "success",
       posts: favoritePosts,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get User's Favorite Posts
+// @route   GET /api/v1/favorite-post/:id
+// @access  private/user
+export const getPostIdUserFavorites = async (req, res) => {
+  try {
+    const favorites = await FavoritePost.find({ userId: req.userId });
+
+    // Extract the postIds from the favorites
+    const postIds = favorites.map((favorite) => favorite.postId);
+
+    // Find the favorite posts
+    const favoritePosts = await Post.find({
+      _id: { $in: postIds },
+      status: "published",
+    }).select("_id slug");
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      postIds: favoritePosts,
     });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -882,6 +915,25 @@ export const getFollowing = async (req, res) => {
     res.status(StatusCodes.OK).json({
       status: "success",
       data: following,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get following list of a user
+// @route   GET /api/v1/users/following/:userId
+// @access  public
+export const getFollowingIds = async (req, res) => {
+  try {
+    const followingIds = await Follow.find({ follower: req.userId });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      followingIds: followingIds,
     });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

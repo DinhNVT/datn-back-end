@@ -2,6 +2,7 @@ import { StatusCodes } from "http-status-codes";
 import PostComment from "../model/PostComment.js";
 import SubPostComment from "../model/SubPostComment.js";
 import ReportComment from "../model/ReportComment.js";
+import Post from "../model/Post.js";
 
 // @desc    Create Report Comment
 // @route   POST /api/v1/posts/comment/report
@@ -111,6 +112,12 @@ export const resolveReportComment = async (req, res) => {
           .json({ status: "fail", message: "Post comment not found" });
       }
 
+      await Post.findOneAndUpdate(
+        { _id: postComment.postId },
+        { $inc: { comment_count: -(1 + postComment.subComments.length) } },
+        { new: true }
+      );
+
       // Delete sub comments if exist
       if (postComment.subComments.length > 0) {
         await SubPostComment.deleteMany({
@@ -141,6 +148,12 @@ export const resolveReportComment = async (req, res) => {
           .status(StatusCodes.NOT_FOUND)
           .json({ status: "fail", message: "Base comment not found" });
       }
+
+      await Post.findOneAndUpdate(
+        { _id: postComment.postId },
+        { $inc: { comment_count: -1 } },
+        { new: true }
+      );
 
       // Delete the sub comment
       await SubPostComment.deleteOne({ _id: reportComment.commentId });
@@ -212,6 +225,11 @@ export const resolveMultipleReportComments = async (req, res) => {
 
         if (postComment) {
           // Delete sub comments if exist
+          await Post.findOneAndUpdate(
+            { _id: postComment.postId },
+            { $inc: { comment_count: -(1 + postComment.subComments.length) } },
+            { new: true }
+          );
           if (postComment.subComments.length > 0) {
             await SubPostComment.deleteMany({
               _id: { $in: postComment.subComments },
@@ -238,6 +256,11 @@ export const resolveMultipleReportComments = async (req, res) => {
           );
 
           if (postComment) {
+            await Post.findOneAndUpdate(
+              { _id: postComment.postId },
+              { $inc: { comment_count: -1 } },
+              { new: true }
+            );
             // Delete the sub comment
             await SubPostComment.deleteOne({ _id: reportComment.commentId });
             deletedSubCommentIds.push(reportComment.commentId);

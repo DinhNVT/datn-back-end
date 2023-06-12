@@ -469,11 +469,12 @@ export const unblockMultiplePosts = async (req, res) => {
 // @access  Public
 export const getPostLatest = async (req, res) => {
   try {
+    const { limit } = req.query;
     const posts = await Post.find({
       status: "published",
     })
       .sort({ createdAt: -1 })
-      .limit(6)
+      .limit(parseInt(limit))
       .populate({
         path: "userId",
         select: ["username", "avatar", "name"],
@@ -631,10 +632,14 @@ export const getFollowedPosts = async (req, res) => {
 export const getPostDetail = async (req, res) => {
   const { slug } = req.query;
   try {
-    const post = await Post.findOne({
-      status: "published",
-      slug: slug,
-    })
+    const post = await Post.findOneAndUpdate(
+      {
+        status: "published",
+        slug: slug,
+      },
+      { $inc: { view_count: 1 } },
+      { new: true }
+    )
       .populate({
         path: "userId",
         select: ["username", "avatar", "name", "bio", "gender", "social"],
@@ -644,10 +649,136 @@ export const getPostDetail = async (req, res) => {
         select: ["name"],
       })
       .select("-status");
+
+    if (!post) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ status: "fail", message: "Post not found" });
+    }
+
     res.status(StatusCodes.OK).json({
       status: "success",
       message: "Get post latest success",
       result: post,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get Post Detail
+// @route   GET /api/v1/posts/most-view
+// @access  Public
+export const getMostViewedPosts = async (req, res) => {
+  try {
+    const { limit } = req.query;
+
+    const mostViewedPosts = await Post.find({ status: "published" })
+      .sort({ view_count: -1, createdAt: -1 })
+      .limit(parseInt(limit))
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name"],
+      })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .select("-status");
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Most viewed posts retrieved successfully",
+      posts: mostViewedPosts,
+    });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get Post Detail
+// @route   GET /api/v1/posts/most-tags
+// @access  Public
+export const getMostPopularTags = async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const mostPopularTags = await Post.aggregate([
+      { $unwind: "$tags" },
+      {
+        $group: {
+          _id: "$tags",
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+      { $limit: parseInt(limit) },
+    ]);
+
+    const tags = await Tag.find({
+      _id: { $in: mostPopularTags.map((tag) => tag._id) },
+    });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Most popular tags retrieved successfully",
+      tags: tags,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get Relate Posts
+// @route   GET /api/v1/posts/relate-posts
+// @access  Public
+export const getRelatedPosts = async (req, res) => {
+  const { postId, limit } = req.query;
+
+  try {
+    const currentPost = await Post.findById(postId);
+    if (!currentPost) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        status: "fail",
+        message: "Post not found",
+      });
+    }
+
+    const tags = currentPost.tags;
+
+    let relatedPosts = await Post.find({
+      _id: { $ne: currentPost._id },
+      tags: { $in: tags },
+      status: "published",
+    })
+      .sort({ view_count: -1 })
+      .limit(parseInt(limit));
+
+    if (relatedPosts.length < parseInt(limit)) {
+      const categoryRelatedPosts = await Post.find({
+        $and: [
+          { _id: { $ne: currentPost._id } },
+          { categoryId: currentPost.categoryId },
+          { status: "published" },
+          { _id: { $nin: relatedPosts.map((post) => post._id) } },
+        ],
+      })
+        .sort({ view_count: -1 })
+        .limit(parseInt(limit) - relatedPosts.length);
+
+      relatedPosts = relatedPosts.concat(categoryRelatedPosts);
+    }
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Related posts retrieved successfully",
+      posts: relatedPosts,
     });
   } catch (error) {
     res
@@ -1009,6 +1140,13 @@ export const createPostComment = async (req, res) => {
 
       //Save to db
       const postComment = await newPostComment.save();
+
+      await Post.findOneAndUpdate(
+        { _id: postExist._id },
+        { $inc: { comment_count: 1 } },
+        { new: true }
+      );
+
       res.status(StatusCodes.OK).json({
         status: "success",
         message: "Create post comment success",
@@ -1043,6 +1181,12 @@ export const createPostComment = async (req, res) => {
         postComment.subComments.push(subPostComment._id);
         await postComment.save();
       }
+
+      await Post.findOneAndUpdate(
+        { _id: postCommentExist.postId },
+        { $inc: { comment_count: 1 } },
+        { new: true }
+      );
 
       res.status(StatusCodes.OK).json({
         status: "success",
@@ -1164,6 +1308,12 @@ export const deletePostComment = async (req, res) => {
         });
       }
 
+      await Post.findOneAndUpdate(
+        { _id: postComment.postId },
+        { $inc: { comment_count: -(1 + postComment.subComments.length) } },
+        { new: true }
+      );
+
       // Delete sub comments if exist
       if (postComment.subComments.length > 0) {
         await SubPostComment.deleteMany({
@@ -1200,6 +1350,12 @@ export const deletePostComment = async (req, res) => {
       const postComment = await PostComment.findByIdAndUpdate(
         subComment.postCommentId,
         { $pull: { subComments: id } },
+        { new: true }
+      );
+
+      await Post.findOneAndUpdate(
+        { _id: postComment.postId },
+        { $inc: { comment_count: -1 } },
         { new: true }
       );
 
