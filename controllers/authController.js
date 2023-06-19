@@ -236,9 +236,9 @@ export const loginUser = async (req, res) => {
       await newRefreshToken.save();
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         path: "/",
-        sameSite: "none",
+        sameSite: "strict",
       });
       const { password, ...others } = user._doc;
       res
@@ -288,9 +288,9 @@ export const refreshTokenUser = async (req, res) => {
 
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         path: "/",
-        sameSite: "none",
+        sameSite: "strict",
       });
       res
         .status(StatusCodes.OK)
