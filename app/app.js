@@ -18,7 +18,11 @@ dbConnect();
 const app = express();
 app.use(cookieParser());
 const corsOptions = {
-  origin: ["http://localhost:3000", "http://localhost:4444"],
+  origin: [
+    process.env.END_POINT_FRONTEND,
+    process.env.END_POINT_ADMIN_FRONTEND,
+  ],
+  // origin: ["*"],
   credentials: true,
 };
 app.use(cors(corsOptions));
