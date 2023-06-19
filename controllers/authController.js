@@ -234,16 +234,16 @@ export const loginUser = async (req, res) => {
 
       //Save to db
       await newRefreshToken.save();
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        path: "/",
-        sameSite: "strict",
-      });
+      // res.cookie("refreshToken", refreshToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   path: "/",
+      //   sameSite: "strict",
+      // });
       const { password, ...others } = user._doc;
       res
         .status(StatusCodes.OK)
-        .json({ status: "success", ...others, accessToken });
+        .json({ status: "success", ...others, accessToken, refreshToken });
     }
   } catch (error) {
     res
@@ -257,7 +257,8 @@ export const loginUser = async (req, res) => {
 // @access  Public
 export const refreshTokenUser = async (req, res) => {
   //take refresh token from user
-  const refreshToken = req.cookies.refreshToken;
+  // const refreshToken = req.cookies.refreshToken;
+  const { refreshToken } = req.body;
   if (!refreshToken)
     return res
       .status(StatusCodes.UNAUTHORIZED)
@@ -286,15 +287,17 @@ export const refreshTokenUser = async (req, res) => {
       //Save to db
       await newRefreshTokenDB.save();
 
-      res.cookie("refreshToken", newRefreshToken, {
-        httpOnly: true,
-        secure: true,
-        path: "/",
-        sameSite: "strict",
+      // res.cookie("refreshToken", newRefreshToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   path: "/",
+      //   sameSite: "strict",
+      // });
+      res.status(StatusCodes.OK).json({
+        status: "success",
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
       });
-      res
-        .status(StatusCodes.OK)
-        .json({ status: "success", accessToken: newAccessToken });
     } catch (error) {
       res
         .status(StatusCodes.INTERNAL_SERVER_ERROR)
@@ -307,8 +310,17 @@ export const refreshTokenUser = async (req, res) => {
 // @route   POST /api/v1/auth/logout
 // @access  Public
 export const logoutUser = async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-  await RefreshToken.deleteOne({ token: refreshToken });
-  res.clearCookie("refreshToken");
-  res.status(StatusCodes.OK).json({ status: "success", message: "Logged out" });
+  // const refreshToken = req.cookies.refreshToken;
+  try {
+    const { refreshToken } = req.body;
+    await RefreshToken.deleteOne({ token: refreshToken });
+    res.clearCookie("refreshToken");
+    res
+      .status(StatusCodes.OK)
+      .json({ status: "success", message: "Logged out" });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error });
+  }
 };
