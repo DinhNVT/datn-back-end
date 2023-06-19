@@ -18,8 +18,7 @@ dbConnect();
 const app = express();
 app.use(cookieParser());
 const corsOptions = {
-  origin: process.env.END_POINT_ALL,
-  // origin: ["*"],
+  origin: process.env.END_POINT_ALL.split(","),
   credentials: true,
 };
 app.use(cors(corsOptions));
