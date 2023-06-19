@@ -238,7 +238,7 @@ export const loginUser = async (req, res) => {
         httpOnly: true,
         secure: false,
         path: "/",
-        sameSite: "strict",
+        sameSite: "none",
       });
       const { password, ...others } = user._doc;
       res
@@ -290,7 +290,7 @@ export const refreshTokenUser = async (req, res) => {
         httpOnly: true,
         secure: false,
         path: "/",
-        sameSite: "strict",
+        sameSite: "none",
       });
       res
         .status(StatusCodes.OK)
