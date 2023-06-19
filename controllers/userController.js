@@ -660,7 +660,7 @@ export const getPublicUserByUsername = async (req, res) => {
   const { username } = req.params;
   try {
     const user = await User.findOne({ username: username }).select(
-      "_id username name email avatar bio gender"
+      "_id username name email avatar bio gender social"
     );
     if (!user) {
       return res
@@ -776,10 +776,15 @@ export const getUserFavorites = async (req, res) => {
     const favoritePosts = await Post.find({
       _id: { $in: postIds },
       status: "published",
-    }).populate({
-      path: "tags",
-      select: ["name"],
-    });
+    })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name"],
+      });
 
     res.status(StatusCodes.OK).json({
       status: "success",

@@ -224,7 +224,7 @@ export const loginUser = async (req, res) => {
     }
 
     if (user && user.isVerify && validPassword) {
-      await RefreshToken.deleteMany({ userId: user._id });
+      // await RefreshToken.deleteMany({ userId: user._id });
       const accessToken = generateAccessToken(user._id, user.roleId.name);
       const refreshToken = generateRefreshToken(user._id, user.roleId.name);
       const newRefreshToken = await new RefreshToken({
@@ -275,7 +275,7 @@ export const refreshTokenUser = async (req, res) => {
         .json({ status: "fail", message: err });
     }
     try {
-      await RefreshToken.deleteMany({ userId: user.userId });
+      await RefreshToken.deleteOne({ token: refreshToken });
       const newAccessToken = generateAccessToken(user.userId, user.userRole);
       const newRefreshToken = generateRefreshToken(user.userId, user.userRole);
 

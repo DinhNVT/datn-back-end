@@ -1398,7 +1398,7 @@ export const getPostComment = async (req, res) => {
         select: ["userId", "comment", "createdAt", "updatedAt"],
         populate: {
           path: "userId",
-          select: ["name", "avatar"],
+          select: ["name", "avatar", "username"],
         },
       })
       .populate({
