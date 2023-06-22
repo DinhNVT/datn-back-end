@@ -12,6 +12,7 @@ import PostRouter from "../routes/PostRouter.js";
 import CategoryPostRouter from "../routes/CategoryPostRouter.js";
 import ContactRouter from "../routes/ContactRouter.js";
 import DashboardRouter from "../routes/DashboardRouter.js";
+import VideoYoutubeRouter from "../routes/VideoYoutubeRouter.js";
 dotenv.config();
 //db connect
 dbConnect();
@@ -35,5 +36,6 @@ app.use("/api/v1/posts/", PostRouter);
 app.use("/api/v1/category-post/", CategoryPostRouter);
 app.use("/api/v1/contact/", ContactRouter);
 app.use("/api/v1/dashboard/", DashboardRouter);
+app.use("/api/v1/video-youtube/", VideoYoutubeRouter);
 
 export default app;
