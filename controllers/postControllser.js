@@ -18,7 +18,9 @@ import PostComment from "../model/PostComment.js";
 import SubPostComment from "../model/SubPostComment.js";
 import User from "../model/User.js";
 import ReportComment from "../model/ReportComment.js";
+import FavoritePost from "../model/FavoritePost.js";
 import Follow from "../model/Follow.js";
+import ContentBasedRecommender from "content-based-recommender";
 
 // @desc    Create Post
 // @route   POST /api/v1/posts
@@ -103,6 +105,7 @@ export const createPost = async (req, res) => {
       content: content,
       status: status,
       thumbnail_url: req.file?.path,
+      // thumbnail_url: thumbnail_crawl,
       tags: tagIds,
     });
     const result = await newPost.save();
@@ -556,6 +559,99 @@ export const getAllPosts = async (req, res) => {
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get All Posts with Content-Based Recommendation
+// @route   GET /api/v1/posts/
+// @access  Public
+export const getAllPostsRecommend = async (req, res) => {
+  try {
+    // Lấy danh sách bài viết từ CSDL
+    const posts = await Post.find({
+      status: "published",
+    })
+      .populate({
+        path: "userId",
+        select: ["username", "avatar", "name"],
+      })
+      .populate({
+        path: "tags",
+        select: ["name"],
+      })
+      .sort({ createdAt: -1 });
+
+    // Tạo một đối tượng ContentBasedRecommender
+    // const recommender = new ContentBasedRecommender({
+    //   minScore: 0.1,
+    //   maxSimilarDocuments: 1000000,
+    // });
+    const recommender = new ContentBasedRecommender();
+
+    // Tạo một mảng dữ liệu chứa thông tin các bài viết và đặc trưng tương ứng
+    const data = posts.map((post) => {
+      const { _id, title, content, tags } = post;
+
+      // Tạo một đặc trưng bằng cách kết hợp nội dung của title, content và tags
+      // const features = `${title} ${content} ${tags.join(" ")}`;
+      const features = `${title} ${tags.join(" ")}`;
+      return { id: _id.toString(), content: features };
+    });
+
+    // Huấn luyện thuật toán gợi ý dựa trên nội dung
+    recommender.train(data);
+    // Gợi ý các bài viết dựa trên danh sách bài viết yêu thích của người dùng
+    const recommendedItems = recommender.getSimilarDocuments(
+      req?.query?.randomPostId,
+      0,
+      1000
+    );
+
+    recommendedItems.sort((a, b) => b.score - a.score);
+    // Lấy danh sách các bài viết gợi ý
+    const recommendedPostIds = recommendedItems.map((item) => item.id);
+    const recommendedPosts = recommendedPostIds.map((postId) =>
+      posts.find((post) => post._id.toString() === postId)
+    );
+
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const total = recommendedPosts.length;
+
+    const paginatedPosts = recommendedPosts.slice(startIndex, endIndex);
+
+    const pagination = {};
+
+    if (endIndex < total) {
+      pagination.next = {
+        page: page + 1,
+        limit,
+      };
+    }
+
+    if (startIndex > 0) {
+      pagination.prev = {
+        page: page - 1,
+        limit,
+      };
+    }
+
+    return res.status(StatusCodes.OK).json({
+      status: "success",
+      total,
+      results: paginatedPosts.length,
+      pagination,
+      message: "Posts fetched successfully",
+      posts: paginatedPosts,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: "fail",
+      message: error.message,
+    });
   }
 };
 
