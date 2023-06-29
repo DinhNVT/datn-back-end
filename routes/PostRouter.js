@@ -10,6 +10,7 @@ import {
   deletePostComment,
   getAllPosts,
   getAllPostsByAdmin,
+  getAllPostsRecommend,
   getAllTags,
   getFollowedPosts,
   getMostPopularTags,
@@ -55,6 +56,7 @@ PostRouter.delete("/:id", authRole(["user", "admin"]), deletePost);
 PostRouter.post("/image", isLoggedIn, upload.single("image"), uploadImagePost);
 PostRouter.get("/latest", getPostLatest);
 PostRouter.get("/get-all", getAllPosts);
+PostRouter.get("/get-all/recommend", getAllPostsRecommend);
 PostRouter.get("/detail", getPostDetail);
 PostRouter.get("/detail/:id", authRole(["user", "admin"]), getPostDetailById);
 PostRouter.post("/comment", authRole(["user", "admin"]), createPostComment);
