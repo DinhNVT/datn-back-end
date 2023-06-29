@@ -68,6 +68,67 @@ export const getPostPerDay = async (req, res) => {
   }
 };
 
+// @desc    Get user count per day for the last 10 days
+// @route   GET /api/v1/dashboard
+// @access  private/Admin
+export const getUserCountPerDay = async (req, res) => {
+  try {
+    // Lấy ngày hiện tại
+    const currentDate = moment().endOf("day");
+
+    // Tạo mảng chứa 10 ngày trước đó
+    const dates = Array.from({ length: 10 }, (_, i) =>
+      moment(currentDate).subtract(i, "days").startOf("day").toDate()
+    );
+
+    // Thực hiện aggregation để lấy số lượng tài khoản trong mỗi ngày
+    const result = await User.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: dates[9] }, // Lọc tài khoản từ ngày cách đây 10 ngày
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }, // Nhóm theo ngày (định dạng YYYY-MM-DD)
+          },
+          count: { $sum: 1 }, // Đếm số lượng tài khoản
+        },
+      },
+      {
+        $sort: { _id: 1 }, // Sắp xếp theo ngày tăng dần
+      },
+    ]);
+
+    // Đảo ngược kết quả để có thứ tự từ cũ đến mới
+    const reversedResult = result.reverse();
+
+    // Xử lý kết quả để có đủ 10 ngày (bao gồm cả những ngày không có tài khoản)
+    const formattedResult = dates.map((date) => {
+      const formattedDate = moment(date).format("YYYY-MM-DD");
+      const matchedItem = reversedResult.find(
+        (item) => item._id === formattedDate
+      );
+      return {
+        date: formattedDate,
+        count: matchedItem ? matchedItem.count : 0,
+      };
+    });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "Dashboard data retrieved successfully",
+      data: formattedResult,
+    });
+  } catch (error) {
+    console.log(error.message);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
 // @desc    Get dashboard data (counts of posts, category posts, users, comments, subcomments)
 // @route   GET /api/v1/dashboard
 // @access  private/Admin
@@ -169,6 +230,43 @@ export const getUserCountByRole = async (req, res) => {
       data: {
         user: userCount,
         admin: adminCount,
+      },
+    });
+  } catch (error) {
+    console.log(error.message);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ status: "fail", message: error.message });
+  }
+};
+
+// @desc    Get user count by verification and blocked status
+// @route   GET /api/v1/users/count
+// @access  private/Admin
+export const getUserCountStatus = async (req, res) => {
+  try {
+    // Đếm số lượng tài khoản đã verify nhưng không bị blocked
+    const verifiedNotBlockedCount = await User.countDocuments({
+      isVerify: true,
+      isBlocked: false,
+    });
+
+    // Đếm số lượng tài khoản chưa verify nhưng không bị blocked
+    const notVerifiedNotBlockedCount = await User.countDocuments({
+      isVerify: false,
+      isBlocked: false,
+    });
+
+    // Đếm số lượng tài khoản đã bị blocked
+    const blockedCount = await User.countDocuments({ isBlocked: true });
+
+    res.status(StatusCodes.OK).json({
+      status: "success",
+      message: "User count retrieved successfully",
+      data: {
+        verifiedNotBlocked: verifiedNotBlockedCount,
+        notVerifiedNotBlocked: notVerifiedNotBlockedCount,
+        blocked: blockedCount,
       },
     });
   } catch (error) {
